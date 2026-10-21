@@ -123,6 +123,15 @@ test('appearance helpers sanitize undefined, non-finite and out-of-range inputs'
   assert.equal(library.eyeShapePath({ rounding: 300 }), library.eyeShapePath({ rounding: 100 }));
 });
 
+test('empty halo colors follow the eye color instead of inheriting text color', () => {
+  for (const blurColor of ['', '   ', null, undefined]) {
+    assert.equal(library.normalizeCuriousEyesAppearance({ color: 'red', blurColor }).blurColor, null);
+    const markup = renderToStaticMarkup(createElement(library.CuriousEyes, { appearance: { color: 'red', edgeBlur: 1, blurColor } }));
+    assert.ok(markup.includes('flood-color="red"'));
+  }
+  assert.equal(library.normalizeCuriousEyesAppearance({ blurColor: '#0af' }).blurColor, '#0af');
+});
+
 test('invalid animation IDs raise descriptive range errors; NaN time stays neutral', () => {
   for (const id of ['nope', null, undefined, {}]) {
     assert.throws(() => library.sampleEyesAnimation(id, 0), RangeError);

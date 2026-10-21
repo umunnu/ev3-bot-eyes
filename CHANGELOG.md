@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Empty or whitespace `blurColor` values follow the eye color, matching the `null` default.
+- Mounting without `requestAnimationFrame` (jsdom without `pretendToBeVisual`) no longer throws; the eyes stay still and `play` returns false.
+- Document the StrictMode development `cancelled` event and offscreen-mount playback before the first visibility report.
+
 ## 0.1.1
 
 - Preserve mount greetings across the initial IntersectionObserver report; use the latest visibility entry.

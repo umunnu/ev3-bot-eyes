@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { JSDOM } from 'jsdom';
-import { act, createElement, createRef, useEffect } from 'react';
+import { StrictMode, act, createElement, createRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CuriousEyes, animationDuration } from '../dist/esm/index.js';
 
-async function fixture(run, { apis = true } = {}) {
-  const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });
+async function fixture(run, { apis = true, visual = true } = {}) {
+  const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: visual });
   const saved = new Map();
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true, performance: new Proxy(globalThis.performance, { get(target, key) { if (key === 'now') return () => now; const value = Reflect.get(target, key, target); return typeof value === 'function' ? value.bind(target) : value; } }) })) {
     saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
@@ -24,8 +24,11 @@ async function fixture(run, { apis = true } = {}) {
   }
   saved.set('IntersectionObserver', Object.getOwnPropertyDescriptor(globalThis, 'IntersectionObserver'));
   Object.defineProperty(globalThis, 'IntersectionObserver', { value: apis ? Observer : undefined, configurable: true });
-  dom.window.requestAnimationFrame = callback => { const id = nextId++; frames.set(id, callback); return id; };
-  dom.window.cancelAnimationFrame = id => frames.delete(id);
+  // Plain jsdom (no pretendToBeVisual) has no animation frame API at all.
+  if (visual) {
+    dom.window.requestAnimationFrame = callback => { const id = nextId++; frames.set(id, callback); return id; };
+    dom.window.cancelAnimationFrame = id => frames.delete(id);
+  }
   dom.window.setTimeout = callback => { const id = nextId++; timers.set(id, callback); return id; };
   dom.window.clearTimeout = id => timers.delete(id);
   const ref = createRef();
@@ -36,9 +39,9 @@ async function fixture(run, { apis = true } = {}) {
   try {
     await run({ render, ref, events, observers, media, frames, timers, advance, window: dom.window,
       unmount: async () => { await act(() => root.unmount()); root = null; },
-      mountGreeting: async () => {
+      mountGreeting: async ({ strict = false } = {}) => {
         function Greeting() { useEffect(() => { ref.current.play('hello'); }, []); return createElement(CuriousEyes, props); }
-        await act(() => root.render(createElement(Greeting)));
+        await act(() => root.render(strict ? createElement(StrictMode, null, createElement(Greeting)) : createElement(Greeting)));
       },
     });
   } finally {
@@ -64,6 +67,21 @@ test('mount greeting survives the initial visible report; last observer entry wi
   f.observers[0].emit(true, false);
   assert.deepEqual(f.events.at(-1), ['thinking', 'cancelled']);
   assert.equal(f.ref.current.play('hello'), false);
+}));
+
+test('an offscreen mount accepts playback until the first observer report cancels it', async () => fixture(async f => {
+  await f.mountGreeting();
+  assert.equal(document.querySelector('svg').dataset.animation, 'hello');
+  f.observers[0].emit(false);
+  assert.deepEqual(f.events, [['hello', 'cancelled']]);
+  assert.equal(f.ref.current.play('hello'), false);
+}));
+
+test('StrictMode development remounts report one cancelled greeting before the real run', async () => fixture(async f => {
+  await f.mountGreeting({ strict: true });
+  assert.deepEqual(f.events, [['hello', 'cancelled']]);
+  f.advance(animationDuration('hello'));
+  assert.deepEqual(f.events, [['hello', 'cancelled'], ['hello', 'completed']]);
 }));
 
 test('animated toggles preserve active playback and use the latest callback', async () => fixture(async f => {
@@ -105,6 +123,28 @@ test('missing matchMedia and IntersectionObserver fall back to visible, motion-e
   f.advance(1500);
   assert.deepEqual(f.events, [['hello', 'completed']]);
 }, { apis: false }));
+
+test('without animation frames the eyes render still, refuse playback and unmount cleanly', async () => {
+  await fixture(async f => {
+    assert.equal(typeof f.window.cancelAnimationFrame, 'undefined');
+    await f.render();
+    assert.match(document.querySelector('[data-slot="curious-eye-left"]').getAttribute('transform'), /^matrix\(/);
+    assert.equal(f.ref.current.play('hello'), false);
+    f.ref.current.stop();
+    await f.render({ animated: false });
+    await f.unmount();
+    assert.deepEqual(f.events, []);
+  }, { visual: false });
+  await fixture(async f => {
+    delete f.window.requestAnimationFrame; delete f.window.cancelAnimationFrame;
+    assert.equal(typeof f.window.requestAnimationFrame, 'undefined');
+    await f.render();
+    assert.equal(document.hidden, false);
+    assert.equal(f.ref.current.play('hello'), false);
+    await f.unmount();
+    assert.deepEqual(f.events, []);
+  });
+});
 
 test('hidden documents cancel playback; unmount cancels work and cleans observers', async () => fixture(async f => {
   await f.render();

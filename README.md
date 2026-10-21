@@ -60,8 +60,8 @@ and owns any saved appearance preferences.
 | `ref` | unset | React 19 ref exposing `play(id): boolean` and `stop(): void`. |
 | `onAnimationEnd` | unset | `(animation, reason) => void`; once for each accepted playback. |
 
-`play` returns false for an unknown ID, hidden/offscreen eyes, or reduced motion.
-It replaces a running reaction. `stop` ends the current reaction and restores
+`play` returns false for an unknown ID, hidden/offscreen eyes, reduced motion, or
+an environment without `requestAnimationFrame`. It replaces a running reaction. `stop` ends the current reaction and restores
 ambient tracking if enabled. Repeated `stop` calls do not emit extra callbacks.
 
 Callback reasons:
@@ -74,6 +74,16 @@ Callback reasons:
 When repeating a thinking reaction, repeat only for `reason === 'completed'`
 and only while work remains pending. Handle replacement/cancellation without
 restarting the old reaction. One-argument callbacks remain compatible.
+
+Offscreen detection waits for the browser's first IntersectionObserver report,
+which arrives shortly after mount. Until then an instance counts as visible, so
+a mount-time `play()` on eyes that start offscreen returns true and then ends
+with `cancelled`.
+
+In development, React StrictMode simulates an unmount and remount right after
+the first mount. A reaction started from a mount effect therefore reports
+`cancelled` once, then plays again when the effect reruns. Production builds
+report only the real run.
 
 The SVG is decorative (`aria-hidden`, unfocusable, no pointer interception).
 Give its surrounding button/avatar an accessible name when appropriate. Its
@@ -120,7 +130,9 @@ component. Pure geometry/animation entry points do not need React or browser API
 
 Missing `matchMedia` defaults to no reduced-motion preference; missing
 `IntersectionObserver` defaults to in-view. This also supports component tests in
-jsdom without requiring either API to be mocked.
+jsdom without requiring either API to be mocked. jsdom provides
+`requestAnimationFrame` only with `pretendToBeVisual: true`; without it the eyes
+render still and `play` returns false.
 
 ## Advanced geometry and animation API
 

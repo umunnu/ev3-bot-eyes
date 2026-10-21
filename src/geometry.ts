@@ -43,15 +43,15 @@ export function normalizeCuriousEyesAppearance(appearance: Partial<CuriousEyesAp
     return typeof value === 'number' && Number.isFinite(value)
       ? Math.max(min, Math.min(max, value)) : defaults[key];
   };
-  const color = (value: unknown, fallback: string) => typeof value === 'string' && value.trim() ? value : fallback;
+  const color = (value: unknown) => typeof value === 'string' && value.trim() ? value : null;
   return {
     shape: ['rectangle', 'triangle', 'diamond', 'circle', 'hexagon', 'drop'].includes(appearance.shape ?? '')
       ? appearance.shape! : defaults.shape,
     width: number('width', 0.1, 64), height: number('height', 0.1, 64),
     gap: number('gap', 0, 64), rounding: number('rounding', 0, 100),
     edgeBlur: number('edgeBlur', 0, 1), rotation: number('rotation', -180, 180),
-    color: color(appearance.color, defaults.color),
-    blurColor: appearance.blurColor == null ? null : color(appearance.blurColor, defaults.color),
+    color: color(appearance.color) ?? defaults.color,
+    blurColor: color(appearance.blurColor) ?? defaults.blurColor,
   };
 }
 

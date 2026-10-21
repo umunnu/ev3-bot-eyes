@@ -91,6 +91,8 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
 
     const reducedMotion = typeof window.matchMedia === 'function'
       ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    // Plain jsdom has no animation frames; the eyes then stay still and refuse playback.
+    const framesAvailable = typeof window.requestAnimationFrame === 'function';
     const target = { x: 0, y: 0 };
     let pendingPointer: { x: number; y: number } | null = null;
     const gaze = { x: 0, y: 0 };
@@ -104,7 +106,7 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
     let reaction: { animation: CuriousEyesAnimation; started: number } | null = null;
 
     function motionAllowed() {
-      return !reducedMotion?.matches && !document.hidden && inView;
+      return framesAvailable && !reducedMotion?.matches && !document.hidden && inView;
     }
 
     function canAnimate() {
@@ -135,6 +137,11 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
 
     function requestFrame() {
       if (!frame && canAnimate()) frame = window.requestAnimationFrame(tick);
+    }
+
+    function cancelFrame() {
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = 0;
     }
 
     function tick(now: number) {
@@ -221,9 +228,8 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
     function resetMotion() {
       const ended = reaction?.animation;
       reaction = null;
-      window.cancelAnimationFrame(frame);
+      cancelFrame();
       window.clearTimeout(blinkTimer);
-      frame = 0;
       lastTime = 0;
       blinkStarted = null;
       svg!.setAttribute('data-animation', 'idle');
@@ -275,8 +281,8 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
       pendingPointer = null;
       target.x = target.y = gaze.x = gaze.y = head.x = head.y = 0;
       if (!canAnimate()) {
-        window.cancelAnimationFrame(frame);
-        frame = lastTime = 0;
+        cancelFrame();
+        lastTime = 0;
       }
       draw(1);
       scheduleBlink();
@@ -286,7 +292,7 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
     resetMotion();
 
     return () => {
-      window.cancelAnimationFrame(frame);
+      cancelFrame();
       window.clearTimeout(blinkTimer);
       observer?.disconnect();
       unsubscribePointer();
