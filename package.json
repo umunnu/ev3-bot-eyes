@@ -1,0 +1,74 @@
+{
+  "name": "@umunnu/ev3-bot-eyes",
+  "version": "0.1.0",
+  "description": "Expressive, cursor-following SVG eyes for React agents and apps.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/umunnu/ev3-bot-eyes.git"
+  },
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./geometry": {
+      "import": {
+        "types": "./dist/esm/geometry.d.ts",
+        "default": "./dist/esm/geometry.js"
+      },
+      "require": {
+        "types": "./dist/cjs/geometry.d.ts",
+        "default": "./dist/cjs/geometry.js"
+      }
+    },
+    "./animations": {
+      "import": {
+        "types": "./dist/esm/animations.d.ts",
+        "default": "./dist/esm/animations.js"
+      },
+      "require": {
+        "types": "./dist/cjs/animations.d.ts",
+        "default": "./dist/cjs/animations.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "npm run build && tsc --noEmit",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "dev": "npm run build && vite examples/playground --host 127.0.0.1 --port 5174 --strictPort",
+    "build:demo": "npm run build && vite build examples/playground --outDir ../../demo-dist --emptyOutDir",
+    "prepack": "npm run build"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0"
+  }
+}
