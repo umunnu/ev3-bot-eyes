@@ -1,13 +1,28 @@
+<div align="center">
+
 # EV3 Bot Eyes
 
-Expressive SVG eyes for React 19. They follow your cursor as one invisible head,
-blink naturally, and perform ten reactions. Choose from six shapes, mirrored
-rotation, independent eye and halo colors, and outward blur that keeps the solid
-eye size intact.
+**Give your agent a little personality.**
 
-No stylesheet or runtime dependency beyond React is required. ESM, CommonJS,
-and TypeScript declarations are included. The name refers to the EV3 app that
-first used these eyes; this is an independent React UI library.
+Expressive SVG eyes that look, blink, and react. Built for React.
+
+[Get started](#install) · [Meet the reactions](#ten-reactions-plenty-of-character) · [Find your look](#six-shapes-your-signature)
+
+React 19 · TypeScript · SVG · [MIT](./LICENSE)
+
+</div>
+
+![Cyan eyes follow a moving cursor as one invisible head and blink naturally, beside the words Hello, human.](./docs/assets/hero.gif)
+
+Turn an avatar, assistant, or loading state into a tiny character. A curious
+glance while the cursor moves. A nervous flinch before a delete. A happy dance
+when the work is done. You choose the moments; the eyes bring the expression.
+
+- **Feels alive.** Smooth cursor tracking, a shared invisible head, and natural blinks.
+- **Looks like your product.** Six shapes, mirrored rotation, and separate eye and halo colors.
+- **Fits your stack.** One React component, typed controls, SSR support, and no stylesheet to wire up.
+
+[Still banner preview](./docs/assets/hero.png) · [Run the playground locally](#develop)
 
 ## Install
 
@@ -48,6 +63,31 @@ export function AgentAvatar() {
 To greet on mount, call `eyes.current?.play('hello')` in a parent `useEffect`.
 Each reaction runs once. The host app chooses which actions trigger reactions
 and owns any saved appearance preferences.
+
+## Ten reactions. Plenty of character.
+
+Say hello. Think it over. Celebrate the small wins. Ten built-in reactions turn
+ordinary app events into moments with a little more feeling.
+
+![Ten animated pairs of eyes perform hello, celebrate, scared, alert, thinking, sleepy, skeptical, oops, dizzy, and dance, with their suggested scenarios.](./docs/assets/reactions.gif)
+
+Every reaction is a one-shot, triggered with `eyes.current?.play('thinking')`
+or any of the other nine IDs. Your app decides when to play, replace, repeat,
+or stop one. The renderer respects reduced motion and visibility.
+
+[Still reaction gallery](./docs/assets/reactions.png)
+
+## Six shapes. Your signature.
+
+Soft rectangles, pointed triangles, inward-curving diamonds, circles, hexagons,
+or drops. Change the proportions, soften the corners, tilt each eye in opposite
+directions, and give the glow a color of its own.
+
+![Six eye designs: cyan glowing rectangles on dark teal, coral triangles on cream, lilac diamonds on violet, crisp ink circles on pale gray, lime hexagons on dark green, and blue drops on lavender.](./docs/assets/shapes.png)
+
+Crisp ink on a light surface or a bright core with a soft halo on dark. The blur
+grows **outside** the eye, so its solid shape keeps the size you chose. Every
+look above uses the same component; these are starting points for your design.
 
 ## Component API
 
