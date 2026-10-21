@@ -17,7 +17,7 @@ test('ESM and CommonJS expose the same typed API without bundling React', () => 
 test('standalone SSR needs no EV3 classes, CSS variables, storage or browser', () => {
   const markup = renderToStaticMarkup(createElement(library.CuriousEyes));
   assert.ok(markup.includes('width="52"') && markup.includes('height="52"'));
-  assert.ok(markup.includes('fill:#000000') && markup.includes('overflow:visible'));
+  assert.ok(markup.includes('fill:currentColor') && markup.includes('overflow:visible'));
   assert.ok(markup.includes('aria-hidden="true"') && markup.includes('focusable="false"'));
   assert.ok(!markup.includes('var(--') && !markup.includes('ev3-curious-eyes'));
   assert.equal((markup.match(/<path /g) ?? []).length, 2);
@@ -92,4 +92,41 @@ test('blur does not shrink solid geometry, canvas scale or animated poses', () =
       }
     }
   }
+});
+
+test('server markup places both eyes at their neutral projected positions', () => {
+  const appearance = { width: 19, gap: 11, rotation: 30 };
+  const markup = renderToStaticMarkup(createElement(library.CuriousEyes, { appearance }));
+  const offset = (appearance.width + appearance.gap) / 2;
+  for (const [side, x] of [['left', -offset], ['right', offset]]) {
+    assert.ok(markup.includes(`data-slot="curious-eye-${side}" transform="${library.eyeTransform(x)}"`));
+  }
+  assert.equal((markup.match(/transform="scale\(1 1\)"/g) ?? []).length, 2);
+});
+
+test('appearance helpers sanitize undefined, non-finite and out-of-range inputs', () => {
+  const invalid = { width: undefined, height: NaN, gap: -5, rounding: 300, edgeBlur: Infinity, rotation: -1000, color: '', shape: 'nope' };
+  const safe = library.normalizeCuriousEyesAppearance(invalid);
+  assert.equal(safe.width, 13); assert.equal(safe.height, 18); assert.equal(safe.gap, 0);
+  assert.equal(safe.rounding, 100); assert.equal(safe.edgeBlur, 0); assert.equal(safe.rotation, -180);
+  assert.equal(safe.color, 'currentColor'); assert.equal(safe.shape, 'rectangle');
+  for (const shape of shapes) {
+    for (const width of [undefined, 0, -10, NaN, Infinity, 1e300]) {
+      const appearance = { ...invalid, shape, width };
+      assert.ok(!/NaN|Infinity/.test(library.eyeShapePath(appearance)));
+      assert.ok(library.eyeViewBox(appearance).split(' ').map(Number).every(Number.isFinite));
+      assert.ok(Number.isFinite(library.eyeBlurRadius(appearance)));
+      const markup = renderToStaticMarkup(createElement(library.CuriousEyes, { appearance }));
+      assert.ok(!/NaN|Infinity/.test(markup));
+    }
+  }
+  assert.equal(library.eyeShapePath({ rounding: 300 }), library.eyeShapePath({ rounding: 100 }));
+});
+
+test('invalid animation IDs raise descriptive range errors; NaN time stays neutral', () => {
+  for (const id of ['nope', null, undefined, {}]) {
+    assert.throws(() => library.sampleEyesAnimation(id, 0), RangeError);
+    assert.throws(() => library.animationDuration(id), /Unknown eyes animation/);
+  }
+  for (const elapsed of [NaN, undefined, null, 'later']) assert.deepEqual(library.sampleEyesAnimation('hello', elapsed), library.sampleEyesAnimation('hello', 0));
 });

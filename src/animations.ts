@@ -33,14 +33,17 @@ export function isCuriousEyesAnimation(value: unknown): value is CuriousEyesAnim
 }
 
 export function animationDuration(id: CuriousEyesAnimation) {
-  return curiousEyesAnimations.find(animation => animation.id === id)!.duration;
+  const animation = curiousEyesAnimations.find(animation => animation.id === id);
+  if (!animation) throw new RangeError(`Unknown eyes animation: ${String(id)}`);
+  return animation.duration;
 }
 
 const smoothstep = (value: number) => value * value * (3 - 2 * value);
 
 /** Pure, bounded one-shot poses. The first and last pose are always neutral. */
 export function sampleEyesAnimation(id: CuriousEyesAnimation, elapsed: number): CuriousEyesAnimationFrame {
-  const p = Math.max(0, Math.min(1, elapsed / animationDuration(id)));
+  const duration = animationDuration(id);
+  const p = typeof elapsed !== 'number' || Number.isNaN(elapsed) ? 0 : Math.max(0, Math.min(1, elapsed / duration));
   const wave = (cycles: number) => Math.sin(p * Math.PI * 2 * cycles);
   const pulse = (center: number, width: number) => Math.exp(-(((p - center) / width) ** 2));
   const envelope = smoothstep(Math.min(1, p / 0.12)) * smoothstep(Math.min(1, (1 - p) / 0.16));

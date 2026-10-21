@@ -11,7 +11,7 @@ import {
 } from './animations.js';
 
 import {
-  defaultCuriousEyesAppearance,
+  normalizeCuriousEyesAppearance,
   eyeBlurRadius,
   eyeShapePath,
   eyeTransform,
@@ -20,6 +20,9 @@ import {
   type CuriousEyesAppearance,
   type EyeExpression,
 } from './geometry.js';
+import { subscribePointer } from './pointer-tracker.js';
+
+export type CuriousEyesAnimationEndReason = 'completed' | 'stopped' | 'replaced' | 'cancelled';
 
 export interface CuriousEyesProps {
   className?: string;
@@ -30,8 +33,8 @@ export interface CuriousEyesProps {
   animated?: boolean;
   appearance?: Partial<CuriousEyesAppearance>;
   ref?: Ref<CuriousEyesHandle>;
-  /** Called after completion, stop, replacement, or visibility cancellation. */
-  onAnimationEnd?: (animation: CuriousEyesAnimation) => void;
+  /** Called once per accepted playback, including replacement and cancellation. */
+  onAnimationEnd?: (animation: CuriousEyesAnimation, reason: CuriousEyesAnimationEndReason) => void;
 }
 
 export interface CuriousEyesHandle {
@@ -47,7 +50,7 @@ function expressionTransform(expression: EyeExpression) {
 }
 
 export function CuriousEyes({ className, size = 52, style, animated = true, appearance, ref, onAnimationEnd }: CuriousEyesProps) {
-  const settings = { ...defaultCuriousEyesAppearance, ...appearance };
+  const settings = normalizeCuriousEyesAppearance(appearance);
   const offset = (settings.width + settings.gap) / 2;
   const path = eyeShapePath(settings);
   const viewBox = eyeViewBox(settings);
@@ -55,7 +58,9 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
   const blur = eyeBlurRadius(settings);
   const blurPadding = blur * 4;
   const blurFilterId = `eyes-blur-${useId().replaceAll(':', '')}`;
-  const layoutRef = useRef({ appearance: settings, offset, halfCanvas: Number(viewBox.split(' ')[2]) / 2 });
+  const layoutRef = useRef({ appearance: settings, offset, halfCanvas: canvasSize / 2 });
+  const animatedRef = useRef(animated);
+  const syncAmbientRef = useRef<(() => void) | null>(null);
   const redrawRef = useRef<(() => void) | null>(null);
   const playbackRef = useRef<CuriousEyesHandle>(inactivePlayback);
   const endCallbackRef = useRef(onAnimationEnd);
@@ -84,8 +89,10 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
     const rightExpression = rightExpressionRef.current;
     if (!svg || !face || !left || !right || !leftLid || !rightLid || !leftExpression || !rightExpression) return;
 
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const reducedMotion = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
     const target = { x: 0, y: 0 };
+    let pendingPointer: { x: number; y: number } | null = null;
     const gaze = { x: 0, y: 0 };
     const head = { x: 0, y: 0 };
     let frame = 0;
@@ -97,11 +104,11 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
     let reaction: { animation: CuriousEyesAnimation; started: number } | null = null;
 
     function motionAllowed() {
-      return !reducedMotion.matches && !document.hidden && inView;
+      return !reducedMotion?.matches && !document.hidden && inView;
     }
 
     function canAnimate() {
-      return (animated || reaction !== null) && motionAllowed();
+      return (animatedRef.current || reaction !== null) && motionAllowed();
     }
 
     function draw(openness = lastOpenness, now = performance.now()) {
@@ -132,6 +139,12 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
 
     function tick(now: number) {
       frame = 0;
+      if (pendingPointer && animatedRef.current && motionAllowed()) {
+        const bounds = svg!.getBoundingClientRect();
+        target.x = Math.tanh((pendingPointer.x - bounds.left - bounds.width / 2) / Math.max(window.innerWidth * 0.45, 180));
+        target.y = Math.tanh((pendingPointer.y - bounds.top - bounds.height / 2) / Math.max(window.innerHeight * 0.45, 180));
+        pendingPointer = null;
+      }
       const elapsed = lastTime ? Math.min((now - lastTime) / 1000, 0.05) : 1 / 60;
       lastTime = now;
       const gazeEase = 1 - Math.exp(-elapsed / 0.14);
@@ -147,7 +160,7 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
         reaction = null;
         svg!.setAttribute('data-animation', 'idle');
         scheduleBlink();
-        endCallbackRef.current?.(ended);
+        endCallbackRef.current?.(ended, 'completed');
       }
 
       let openness = 1;
@@ -180,7 +193,7 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
 
     function scheduleBlink() {
       window.clearTimeout(blinkTimer);
-      if (!animated || reaction !== null || !motionAllowed()) return;
+      if (!animatedRef.current || reaction !== null || !motionAllowed()) return;
       blinkTimer = window.setTimeout(() => {
         blinkStarted = performance.now();
         requestFrame();
@@ -188,19 +201,14 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
       }, 2800 + Math.random() * 3000);
     }
 
-    function followPointer(event: PointerEvent) {
-      if (!animated || event.pointerType === 'touch' || !motionAllowed()) return;
-      const bounds = svg!.getBoundingClientRect();
-      target.x = Math.tanh(
-        (event.clientX - bounds.left - bounds.width / 2) / Math.max(window.innerWidth * 0.45, 180)
-      );
-      target.y = Math.tanh(
-        (event.clientY - bounds.top - bounds.height / 2) / Math.max(window.innerHeight * 0.45, 180)
-      );
+    const unsubscribePointer = subscribePointer(pointer => {
+      if (!animatedRef.current || !motionAllowed()) return;
+      pendingPointer = pointer;
       requestFrame();
-    }
+    });
 
     function rest() {
+      pendingPointer = null;
       target.x = 0;
       target.y = 0;
       requestFrame();
@@ -219,10 +227,11 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
       lastTime = 0;
       blinkStarted = null;
       svg!.setAttribute('data-animation', 'idle');
+      pendingPointer = null;
       target.x = target.y = gaze.x = gaze.y = head.x = head.y = 0;
       draw(1);
       scheduleBlink();
-      if (ended) endCallbackRef.current?.(ended);
+      if (ended) endCallbackRef.current?.(ended, 'cancelled');
     }
 
     function play(animation: CuriousEyesAnimation) {
@@ -232,9 +241,9 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
       window.clearTimeout(blinkTimer);
       blinkStarted = null;
       svg!.setAttribute('data-animation', animation);
-      if (previous) endCallbackRef.current?.(previous);
       draw(1, reaction.started);
       requestFrame();
+      if (previous) endCallbackRef.current?.(previous, 'replaced');
       return true;
     }
 
@@ -245,41 +254,62 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
       draw(1);
       scheduleBlink();
       requestFrame();
-      if (ended) endCallbackRef.current?.(ended);
+      if (ended) endCallbackRef.current?.(ended, 'stopped');
     }
 
-    const observer = new IntersectionObserver(([entry]) => {
+    const observer = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries => {
+      const entry = entries.at(-1);
+      if (!entry || entry.isIntersecting === inView) return;
       inView = entry.isIntersecting;
       resetMotion();
-    });
-    observer.observe(svg);
-    window.addEventListener('pointermove', followPointer, { passive: true });
+    }) : null;
+    observer?.observe(svg);
     window.addEventListener('pointerout', leaveWindow);
     window.addEventListener('blur', rest);
     document.addEventListener('visibilitychange', resetMotion);
-    reducedMotion.addEventListener('change', resetMotion);
+    reducedMotion?.addEventListener?.('change', resetMotion);
     redrawRef.current = () => draw();
+    syncAmbientRef.current = () => {
+      window.clearTimeout(blinkTimer);
+      blinkStarted = null;
+      pendingPointer = null;
+      target.x = target.y = gaze.x = gaze.y = head.x = head.y = 0;
+      if (!canAnimate()) {
+        window.cancelAnimationFrame(frame);
+        frame = lastTime = 0;
+      }
+      draw(1);
+      scheduleBlink();
+      requestFrame();
+    };
     playbackRef.current = { play, stop };
     resetMotion();
 
     return () => {
       window.cancelAnimationFrame(frame);
       window.clearTimeout(blinkTimer);
-      observer.disconnect();
+      observer?.disconnect();
+      unsubscribePointer();
+      syncAmbientRef.current = null;
       redrawRef.current = null;
       playbackRef.current = inactivePlayback;
-      window.removeEventListener('pointermove', followPointer);
       window.removeEventListener('pointerout', leaveWindow);
       window.removeEventListener('blur', rest);
       document.removeEventListener('visibilitychange', resetMotion);
-      reducedMotion.removeEventListener('change', resetMotion);
+      reducedMotion?.removeEventListener?.('change', resetMotion);
+      const ended = reaction?.animation;
+      reaction = null;
+      if (ended) endCallbackRef.current?.(ended, 'cancelled');
     };
-  }, [animated]);
+  }, []);
 
   useLayoutEffect(() => {
-    layoutRef.current = { appearance: settings, offset, halfCanvas: Number(viewBox.split(' ')[2]) / 2 };
+    layoutRef.current = { appearance: settings, offset, halfCanvas: canvasSize / 2 };
     endCallbackRef.current = onAnimationEnd;
-    redrawRef.current?.();
+    const changed = animatedRef.current !== animated;
+    animatedRef.current = animated;
+    if (changed) syncAmbientRef.current?.();
+    else redrawRef.current?.();
   });
 
   return (
@@ -319,17 +349,17 @@ export function CuriousEyes({ className, size = 52, style, animated = true, appe
         </defs>
       ) : null}
       <g data-slot="curious-eyes-softness" filter={blur > 0 ? `url(#${blurFilterId})` : undefined}>
-        <g data-slot="curious-eyes-face" ref={faceRef}>
-          <g data-slot="curious-eye-left" ref={leftRef}>
-            <g data-slot="curious-eye-lid" ref={leftLidRef}>
-              <g data-slot="curious-eye-expression" ref={leftExpressionRef}>
+        <g data-slot="curious-eyes-face" ref={faceRef} transform="translate(32 32) scale(1) translate(-32 -32)">
+          <g data-slot="curious-eye-left" ref={leftRef} transform={eyeTransform(-offset)}>
+            <g data-slot="curious-eye-lid" ref={leftLidRef} transform="scale(1 1)">
+              <g data-slot="curious-eye-expression" ref={leftExpressionRef} transform={expressionTransform(neutralEyeExpression)}>
                 <path d={path} transform={`rotate(${settings.rotation})`} />
               </g>
             </g>
           </g>
-          <g data-slot="curious-eye-right" ref={rightRef}>
-            <g data-slot="curious-eye-lid" ref={rightLidRef}>
-              <g data-slot="curious-eye-expression" ref={rightExpressionRef}>
+          <g data-slot="curious-eye-right" ref={rightRef} transform={eyeTransform(offset)}>
+            <g data-slot="curious-eye-lid" ref={rightLidRef} transform="scale(1 1)">
+              <g data-slot="curious-eye-expression" ref={rightExpressionRef} transform={expressionTransform(neutralEyeExpression)}>
                 <path d={path} transform={`rotate(${-settings.rotation})`} />
               </g>
             </g>

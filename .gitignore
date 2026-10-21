@@ -4,3 +4,6 @@ demo-dist/
 *.tgz
 .DS_Store
 *.log
+.build/
+playwright-report/
+test-results/

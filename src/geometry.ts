@@ -31,9 +31,29 @@ export const defaultCuriousEyesAppearance: CuriousEyesAppearance = {
   rounding: 85,
   edgeBlur: 0,
   rotation: 0,
-  color: '#000000',
+  color: 'currentColor',
   blurColor: null,
 };
+
+/** Drop undefined/non-finite values and constrain geometry to a safe SVG range. */
+export function normalizeCuriousEyesAppearance(appearance: Partial<CuriousEyesAppearance> = {}): CuriousEyesAppearance {
+  const defaults = defaultCuriousEyesAppearance;
+  const number = (key: 'width' | 'height' | 'gap' | 'rounding' | 'edgeBlur' | 'rotation', min: number, max: number) => {
+    const value = appearance[key];
+    return typeof value === 'number' && Number.isFinite(value)
+      ? Math.max(min, Math.min(max, value)) : defaults[key];
+  };
+  const color = (value: unknown, fallback: string) => typeof value === 'string' && value.trim() ? value : fallback;
+  return {
+    shape: ['rectangle', 'triangle', 'diamond', 'circle', 'hexagon', 'drop'].includes(appearance.shape ?? '')
+      ? appearance.shape! : defaults.shape,
+    width: number('width', 0.1, 64), height: number('height', 0.1, 64),
+    gap: number('gap', 0, 64), rounding: number('rounding', 0, 100),
+    edgeBlur: number('edgeBlur', 0, 1), rotation: number('rotation', -180, 180),
+    color: color(appearance.color, defaults.color),
+    blurColor: appearance.blurColor == null ? null : color(appearance.blurColor, defaults.color),
+  };
+}
 
 export const curiousEyesPalette = [
   { label: 'Black', color: '#000000' },
@@ -57,7 +77,8 @@ export interface EyeExpression {
 type Point = [number, number];
 
 /** Scale diffusion with the eye, so every preview size keeps the same look. */
-export function eyeBlurRadius({ edgeBlur, width, height }: CuriousEyesAppearance) {
+export function eyeBlurRadius(appearance: Partial<CuriousEyesAppearance>) {
+  const { edgeBlur, width, height } = normalizeCuriousEyesAppearance(appearance);
   return Math.max(0, Math.min(1, edgeBlur)) * Math.min(width, height) * 0.14;
 }
 
@@ -79,7 +100,8 @@ function roundedPolygon(points: Point[], rounding: number) {
   ).join(' ') + ' Z';
 }
 
-export function eyeShapePath({ shape, width, height, rounding }: CuriousEyesAppearance) {
+export function eyeShapePath(appearance: Partial<CuriousEyesAppearance>) {
+  const { shape, width, height, rounding } = normalizeCuriousEyesAppearance(appearance);
   const x = width / 2;
   const y = height / 2;
   const softness = rounding / 100;
@@ -143,8 +165,8 @@ export function eyeTransform(x: number, yaw = 0, pitch = 0, roll = 0) {
 }
 
 /** Fit the eye geometry; the halo paints outside this canvas without resizing it. */
-export function eyeViewBox(appearance: CuriousEyesAppearance) {
-  const { width, height, gap, rotation } = appearance;
+export function eyeViewBox(appearance: Partial<CuriousEyesAppearance>) {
+  const { width, height, gap, rotation } = normalizeCuriousEyesAppearance(appearance);
   let extent = 30;
   const offset = (width + gap) / 2;
   for (const side of [-1, 1]) {
@@ -179,6 +201,7 @@ export function fitEyeExpression(
   left: EyeExpression,
   right: EyeExpression
 ) {
+  appearance = normalizeCuriousEyesAppearance(appearance);
   let extent = 0;
   for (const side of [-1, 1]) {
     const expression = side === -1 ? left : right;

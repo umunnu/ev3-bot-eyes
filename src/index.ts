@@ -1,6 +1,6 @@
-export { CuriousEyes, type CuriousEyesHandle, type CuriousEyesProps } from './curious-eyes.js';
+export { CuriousEyes, type CuriousEyesHandle, type CuriousEyesProps, type CuriousEyesAnimationEndReason } from './curious-eyes.js';
 export {
-  curiousEyesPalette, defaultCuriousEyesAppearance, eyeBlurRadius, eyeShapePath,
+  curiousEyesPalette, defaultCuriousEyesAppearance, normalizeCuriousEyesAppearance, eyeBlurRadius, eyeShapePath,
   eyeTransform, eyeViewBox, fitEyeExpression,
   type CuriousEyeShape, type CuriousEyesAppearance, type EyeExpression,
 } from './geometry.js';

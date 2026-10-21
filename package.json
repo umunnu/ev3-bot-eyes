@@ -1,12 +1,12 @@
 {
   "name": "@umunnu/ev3-bot-eyes",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Expressive, cursor-following SVG eyes for React agents and apps.",
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/umunnu/ev3-bot-eyes.git"
+    "url": "git+https://github.com/umunnu/ev3-bot-eyes.git"
   },
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
@@ -46,29 +46,46 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "CHANGELOG.md"
   ],
   "sideEffects": false,
-  "engines": {
-    "node": ">=20.19.0"
-  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "npm run build && tsc --noEmit",
     "test": "npm run build && node --test tests/*.test.mjs",
     "dev": "npm run build && vite examples/playground --host 127.0.0.1 --port 5174 --strictPort",
     "build:demo": "npm run build && vite build examples/playground --outDir ../../demo-dist --emptyOutDir",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "test:browser": "npm run build && node --test tests/browser/*.test.mjs",
+    "lint:package": "npm run build && publint --strict && attw --pack"
   },
   "peerDependencies": {
     "react": "^19.0.0"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "jsdom": "29.1.1",
+    "playwright": "1.64.0",
+    "publint": "0.3.25",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "typesVersions": {
+    "*": {
+      "geometry": [
+        "dist/esm/geometry.d.ts"
+      ],
+      "animations": [
+        "dist/esm/animations.d.ts"
+      ]
+    }
   }
 }
